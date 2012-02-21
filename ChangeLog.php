@@ -1,5 +1,7 @@
 <?php die; ?>
 
+git test
+
 0.2.0 * New options in EM:
 		a) "Render COA_GO as COA" If set to TRUE it will disable COA_GO and the COA_GO will be rendered as normal COA. It allows you to simply compare times of rendering with or witout COA_GO.
 		b) "hash from cObj path" If set to TRUE then hashes will be made of cObject path. For example if you have "page.10.subpart.myMenu < temp.myMenu" then hash will have name "subpart_myMenu". This is solution if you are too lazy to write your own name for hash using "cache.hash" property. Take under consideration that in some cases this do not guarantee uniqness.
