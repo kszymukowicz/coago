@@ -4,7 +4,7 @@
  * ************************************************************
  *  Copyright notice
  *
- *  (c) Krystian Szymukowicz (http://www.prolabium.com)
+ *  (c) Krystian Szymukowicz (http://www.cms-partner.pl/)
  *  All rights reserved
  *
  *  This script is part of the TYPO3 project. The TYPO3 project is
@@ -71,7 +71,7 @@ class tx_coago {
 						$this->ident = '_' . $this->table;
 					}
 					$rangeUidList = $this->cObj->stdWrap($this->TSObjectConf['cache.']['range.']['uidList'], $this->TSObjectConf['cache.']['range.']['uidList.']);
-					
+
 					$process = TRUE;
 					if($rangeUidList) {
 						$process = t3lib_div::inList($rangeUidList, $GLOBALS['TSFE']->id);
@@ -156,7 +156,8 @@ class tx_coago {
 			$uidList = $this->TSObjectConf['cache.']['hash.']['special.']['unique.']['uidList'];
 			$pidList = $this->TSObjectConf['cache.']['hash.']['special.']['unique.']['pidList'];
 			if($pidList) {
-				$rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows ('uid', 'pages', 'pid IN('. trim($pidList) . ') AND doktype <> 254', $groupBy='', $orderBy='', $limit='');
+				$addWhere = $this->TSObjectConf['cache.']['hash.']['special.']['unique.']['pidList.']['addWhere'];
+				$rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows ('uid', 'pages', 'pid IN('. trim($pidList) . ') AND doktype <> 254 AND hidden=0 AND deleted=0 ' . $addWhere, $groupBy='', $orderBy='', $limit='');
 				if($rows) {
 					foreach($rows as $row) {
 						$uidList .= ',' . $row['uid'];
@@ -185,11 +186,16 @@ class tx_coago {
 			}
 		}
 
-		// check if language shuold be included into hash
+		// check if language should be included into hash
 		if($this->TSObjectConf['cache.']['hash.']['special.']['lang']) {
 			$hash .= '_' . $GLOBALS['TSFE']->config['config']['language'];
 		}
-		
+
+		// check if feuser hash should be included into hash
+		if($this->TSObjectConf['cache.']['hash.']['special.']['feuser']) {
+			$hash .= '_ftu'; //-' . $GLOBALS["TSFE"]->fe_user->user["ses_id"];
+		}
+
 		//join it with unique
 		$hash .= $unique;
 
@@ -210,7 +216,7 @@ class tx_coago {
 
 	/*
 	 * @return string Content of the cObject
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function beforeCacheDb() {
 
@@ -220,6 +226,11 @@ class tx_coago {
 		if ( !strlen($content) ) {
 
 			$content = $this->getCoagoContent($this->TSObjectConf);
+			if(!strlen($content) ) {
+				print_r($this->TSObjectConf);
+				die;	
+			}
+			
 			if($this->debug) {
 				$content .= $this->getFormattedTimeStamp('beforeCacheDb');
 			}
@@ -236,7 +247,7 @@ class tx_coago {
 
 	/*
 	 * @return string EXT_SCRIPT which is put in HTML of generated page and then replaced each time the pages is delivered from the cache. Content of the cObject is written in file.
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function afterCacheFile() {
 		// use EXT_SCRIPT to include cObject stored in files
@@ -289,52 +300,28 @@ class tx_coago {
 
 	/*
 	 * @return string Javascript which is put in HTML of generated page and then when delivered to the client browser it gets the content through ajax. Content of the cObject is written in file.
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function afterCacheFileAjax() {
 
-		// ASSIGN SOME VARS
-		$siteUrl = t3lib_div::getIndpEnv('TYPO3_SITE_URL');
+		// store the date in cache_hash that will be used later by ajax call to rebuild cObject
+		$this->restoreData['cObj'] = $this->cObj;
+		$this->restoreData['conf'] = $this->TSObjectConf;
+		$this->restoreData['absolutePath'] = $this->absolutePath;
+		$this->restoreData['filename'] = $this->filename;
+		$this->restoreData['cacheFileExtension'] =  $this->cacheFileExtension;
+		if( $this->table ) {
+			$this->ident = '_' . $this->table;
+		}
+		$GLOBALS['TSFE']->sys_page->storeHash($this->cacheHash, serialize($this->restoreData), 'COA_GO'. $this->ident);
+
+
+		// prepare the data needed to create javascript that will fetch the cObject
 		$this->counter = self::$counter;
 		$this->cachePeriod = $this->cachePeriod?$this->cachePeriod : '0';
 		$this->refresh = intval($this->cObj->stdWrap($this->TSObjectConf['cache.']['refresh'], $this->TSObjectConf['cache.']['refresh.'])) * 1000;
 		$this->onLoading = $this->cObj->stdWrap($this->TSObjectConf['cache.']['onLoading'], $this->TSObjectConf['cache.']['onLoading.']);
-		if( $this->table ) {
-				$this->ident = '_' . $this->table;
-		}
 
-		// CREATE FILE, THAT WILL BE FETACHED WITH AJAX
-
-		// cObject not yet cached in file or cache period expired? So generate and store in files.
-		if( file_exists($this->absolutePathWithFilename) ) {
-			$cachedFileExist = TRUE;
-			$ageInSeconds = time() - filemtime($this->absolutePathWithFilename);
-		}else {
-			$cachedFileExist = FALSE;
-		}
-
-		if(! $cachedFileExist
-		||  ( $this->cachePeriod && ($ageInSeconds > $this->cachePeriod)) ){
-
-			$contentToStore = $this->getCoagoContent($this->TSObjectConf);
-			if($this->debug) {
-				$contentToStore .= $this->getFormattedTimeStamp('afterCacheFileAjax - first call');
-			}
-			$fileStatus = t3lib_div::writeFileToTypo3tempDir($this->absolutePathWithFilename, $contentToStore);
-			if ($fileStatus)t3lib_div::devLog('Error writing afterCacheFileAjax: '.$fileStatus, $this->extKey, 3);
-			t3lib_div::fixPermissions($this->absolutePathWithFilename);
-
-			// write data needed to reender this object later on using special PAGE type
-			$this->restoreData['cObj'] = $this->cObj;
-			$this->restoreData['conf'] = $this->TSObjectConf;
-			$this->restoreData['absolutePathWithFilename'] = $this->absolutePathWithFilename;
-			$GLOBALS['TSFE']->sys_page->storeHash($this->cacheHash, serialize($this->restoreData), 'COA_GO'. $this->ident);
-
-		}
-
-
-
-		// GENERATE JAVASCRIPT THAT WILL LOAD CACHED COBJECT
 
 		// hook for implementing own ajax script if you like to make it with some js frameworks as jQuery, MooTools, etc.
 		if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['coago']['ajaxScript'])) {
@@ -346,16 +333,10 @@ class tx_coago {
 			$script = $this->getCoagoAjaxScript();
 		}
 
-		// script minification
-		$script = t3lib_div::minifyJavaScript($script, $error);
-		if ($error) {
-			t3lib_div::devLog('Error minimizing script: '.$error, $this->extKey, 3);
-		}
-
 		// wrap the script end return
-		$content .= "<div id='ncc-{$this->counter}'><script type='text/javascript'>
+		$content .= "<div id='ncc-{$this->counter}'> </div><script type='text/javascript'>
 		{$script}
-		</script></div>";
+		</script>";
 
 		return $content;
 	}
@@ -366,7 +347,7 @@ class tx_coago {
 	/*
 	 * @param array Configuration
 	 * @return string Content generated with COA
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function getCoagoContent($conf) {
 
@@ -389,7 +370,7 @@ class tx_coago {
 	/*
 	 * @param string Text used to distinguish between debug data
 	 * @return string Unique text used to debug purposes
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function getFormattedTimeStamp($marker) {
 
@@ -408,7 +389,7 @@ class tx_coago {
 	 * Sets patches used in whole class
 	 *
 	 * @return void
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function setPathesAndFiles() {
 
@@ -432,8 +413,9 @@ class tx_coago {
 
 		$this->relativePath =  $confArr['cacheDirectory'];
 		$this->absolutePath = PATH_site . $this->relativePath;
-		$this->filename = $this->cacheHash . $this->ident . '.' . $this->cacheFileExtension;
-		$this->absolutePathWithFilename = $this->absolutePath . $this->filename;
+		$this->filename = $this->cacheHash . $this->ident;
+		$this->filenameWithExtension =  $this->filename . '.' . $this->cacheFileExtension;
+		$this->absolutePathWithFilename = $this->absolutePath . $this->filenameWithExtension;
 	}
 
 
@@ -447,7 +429,7 @@ class tx_coago {
 	 *
 	 * @param array Configuration array
 	 * @return void
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function regenerateContent($conf) {
 
@@ -456,34 +438,63 @@ class tx_coago {
 			t3lib_div::devLog('Bad hash passed in GET vars when regenerating content.', 'coago', 3);
 			die('Bad hash passed in GET vars when regenerating content.');
 		}
+		// from "cache_hash" get the data needed to rebuild cObject
 		$this->restoreData = unserialize($GLOBALS['TSFE']->sys_page->getHash($this->cacheHash));
 
-		// this is for situation when "cache_hash" table has been cleared and there is no info to regenarate cObjects fetched by ajax, so we have to fetch the whole page
-		if(!$this->restoreData){
-			t3lib_div::getURL(t3lib_div::getIndpEnv('TYPO3_SITE_URL') . 'index.php?id='. $GLOBALS['TSFE']->id .'&no_cache=1');
+		// this is for rare situation when "cache_hash" table has been cleared and there is no info to regenarate cObjects fetched by ajax, so we have to fetch the whole page
+		if(empty($this->restoreData)){
+			if($GLOBALS['TSFE']->fe_user->user['uid']) {
+				t3lib_div::getURL(t3lib_div::getIndpEnv('TYPO3_SITE_URL') . 'index.php?id='. $GLOBALS['TSFE']->id .'&ftu=' . $GLOBALS['TSFE']->fe_user->user['ses_id'], 1, Array('User-Agent: '. t3lib_div::getIndpEnv('HTTP_USER_AGENT')) );
+			}else{
+				t3lib_div::getURL(t3lib_div::getIndpEnv('TYPO3_SITE_URL') . 'index.php?id='. $GLOBALS['TSFE']->id .'&no_cache=1');
+			}
 			$this->restoreData = unserialize($GLOBALS['TSFE']->sys_page->getHash($this->cacheHash));
 		}
 
 		$this->cacheType = $this->cObj->stdWrap($this->restoreData['conf']['cache.']['type'], $this->restoreData['conf']['cache.']['type.']);
-		$this->cachePeriod = intval($this->cObj->stdWrap($this->restoreData['conf']['cache.']['period'], $this->restoreData['conf']['cache.']['period.']));
-		$this->absolutePathWithFilename = $this->restoreData['absolutePathWithFilename'];
+		$this->cachePeriod = intval($this->cObj->stdWrap($this->restoreData['conf']['cache.']['period'], $this->restoreData['conf']['cache.']['period.']));		//
+		$this->absolutePath = $this->restoreData['absolutePath'];
+		$this->filename = $this->restoreData['filename'];
+		$this->cacheFileExtension = $this->restoreData['cacheFileExtension'];
+
 		$this->typeNum = $GLOBALS['TSFE']->tmpl->setup['coago_ajax.']['typeNum'];
 
 		$GLOBALS['TSFE']->cObj = $this->restoreData['cObj'];
 
 		$contentToStore = $this->getCoagoContent($this->restoreData['conf']);
 
-
-		if($this->cachePeriod && ($this->cacheType == 'afterCacheFile' || $this->cacheType == 'afterCache_file' || $this->cacheType == 2) ) {
-			$contentToStore = $this->getAfterCacheFileExpireChecks() . $contentToStore;
-		}
+		//		if($this->cachePeriod && ($this->cacheType == 'afterCacheFile' || $this->cacheType == 'afterCache_file' || $this->cacheType == 2) ) {
+		//			$contentToStore = $this->getAfterCacheFileExpireChecks() . $contentToStore;
+		//		}
 
 		if($this->restoreData['conf']['cache.']['debug']) {
-			$contentToStore .= $this->getFormattedTimeStamp( $this->cacheType . ' - regenerated' );
+			$contentToStore .= $this->getFormattedTimeStamp($this->cacheType . ' - regenerated');
 		}
 
-		$fileStatus = t3lib_div::writeFileToTypo3tempDir($this->absolutePathWithFilename, $contentToStore);
-		if ($fileStatus)t3lib_div::devLog('Error writing afterCacheFileAjax: '.$fileStatus, $this->extKey, 3);
+
+		$absolutePathWithFilename = $this->absolutePath . $this->filename;
+
+		if($this->cacheFileExtension) {
+			$absolutePathWithFilename .= '.' . $this->cacheFileExtension;
+		}
+
+		if($this->restoreData['conf']['cache.']['hash.']['special.']['feuser'] && $GLOBALS['TSFE']->fe_user->user['uid']) {
+			// user dependent cObject are put into folder with hash name
+			$absolutePathWithFilename =  $this->absolutePath . $this->filename . '/' . $GLOBALS["TSFE"]->fe_user->user["uid"];
+				
+			if($this->cacheFileExtension) {
+				$absolutePathWithFilename .= '.' . $this->cacheFileExtension;
+			}
+				
+		}
+		if( t3lib_div::validPathStr($absolutePathWithFilename) && t3lib_div::isFirstPartOfStr(t3lib_div::fixWindowsFilePath($absolutePathWithFilename), PATH_site . 'typo3temp' )) {
+			$fileStatus = t3lib_div::writeFileToTypo3tempDir($absolutePathWithFilename, $contentToStore);
+			if ($fileStatus) {
+				t3lib_div::devLog('Error writing afterCacheFileAjax: '.$fileStatus, $this->extKey, 3);
+			}
+		}
+		// return the content directly to browser
+		return $contentToStore;
 	}
 
 
@@ -493,7 +504,7 @@ class tx_coago {
 	 * Returns php code needed to check if cObject in method "afterCacheFile" is expired
 	 *
 	 * @return string php code
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function getAfterCacheFileExpireChecks() {
 		$cacheChecks = '<?php
@@ -511,102 +522,58 @@ class tx_coago {
 	 * Returns javascript code that fetch and regenerate the content objects
 	 *
 	 * @return string javascript code
-	 * @author Krystian Szymukowicz <typo3@prolabium.com>
+	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
 	function getCoagoAjaxScript() {
 
-		$counter = $this->counter;
+		$siteUrl = t3lib_div::getIndpEnv('TYPO3_SITE_URL');
 
-		$script = "
-	
-function coa_go_{$counter}() {	
-var http_req_{$counter} = false;
-if( navigator.appName === 'Microsoft Internet Explorer' ) {
-	http_req_{$counter} = new ActiveXObject('Microsoft.XMLHTTP');
- } else {
-	http_req_{$counter} = new XMLHttpRequest();
- }
-
- http_req_{$counter}.open('GET', '{$siteUrl}{$this->relativePath}{$this->filename}',true);
- http_req_{$counter}.setRequestHeader('Content-type', 'text/html');
- http_req_{$counter}.setRequestHeader('If-Modified-Since', 'Thu, 01 Jan 1970 00:00:00 GMT' );	 			
- http_req_{$counter}.send(null);
-
- ";
-
-		if($this->onLoading) {
-			$script .= "document.getElementById('ncc-{$counter}').innerHTML = {$this->onLoading};";
+		if($this->confArr['includeCoagoJavascript']) {
+			$GLOBALS['TSFE']->additionalHeaderData['coago'] = '<script src="'. $siteUrl .'typo3conf/ext/coago/res/js/coago.js" type="text/javascript"> </script>';
 		}
 
-		$script .= "
-    http_req_{$counter}.onreadystatechange=function() {
-	if( http_req_{$counter}.readyState === 4 ) {
 
-	   ageInSeconds = (new Date() - Date.parse(http_req_{$counter}.getResponseHeader('Last-Modified'))) / 1000;
+		if(!strlen($this->onLoading)) {$this->onLoading = "''";}
 
-	   if( (http_req_{$counter}.status === 200) && ( (ageInSeconds < {$this->cachePeriod}) || ('{$this->cachePeriod}' === '0') ) ) {		  	
-	   		document.getElementById('ncc-{$counter}').innerHTML = http_req_{$counter}.responseText;
-	   } else {
 
-		  var http_req_{$counter}_r1 = false;
-		  if(navigator.appName === 'Microsoft Internet Explorer') {
-			 http_req_{$counter}_r1 = new ActiveXObject('Microsoft.XMLHTTP');
-		  } else {
-			 http_req_{$counter}_r1 = new XMLHttpRequest();
-		  }
-
-		http_req_{$counter}_r1.open('GET', '{$siteUrl}index.php?id={$GLOBALS['TSFE']->id}&type={$this->typeNum}&cacheHash={$this->cacheHash}');
-		http_req_{$counter}_r1.setRequestHeader('Content-type', 'text/html');
-		http_req_{$counter}_r1.setRequestHeader('If-Modified-Since', 'Thu, 01 Jan 1970 00:00:00 GMT' );		 			
-		http_req_{$counter}_r1.send(null);
-
-		http_req_{$counter}_r1.onreadystatechange=function() {
-			 if( http_req_{$counter}_r1.readyState === 4 ) {
-
-				var http_req_{$counter}_r2 = false;
-				if(navigator.appName === 'Microsoft Internet Explorer') {
-				   http_req_{$counter}_r2 = new ActiveXObject('Microsoft.XMLHTTP');
-				} else {
-				   http_req_{$counter}_r2 = new XMLHttpRequest();
-				}
-
-			 http_req_{$counter}_r2.open('GET', '{$siteUrl}{$this->relativePath}{$this->filename}',true);
-			 http_req_{$counter}_r2.setRequestHeader('Content-type', 'text/html');
-			 http_req_{$counter}_r2.setRequestHeader('If-Modified-Since', 'Thu, 01 Jan 1970 00:00:00 GMT' );		 			
-			 http_req_{$counter}_r2.send(null);";
-
-		if($this->onLoading) {
-			$script .= "		document.getElementById('ncc-{$counter}').innerHTML = {$this->onLoading};";
+		//'{$siteUrl}/index{$this->relativePath}{$this->filename}{$ftu}.php',
+		if($this->TSObjectConf['cache.']['hash.']['special.']['lang']) {
+			$lang = '&L='. $GLOBALS['TSFE']->sys_language_uid;
 		}
+		
+		if($this->TSObjectConf['cache.']['hash.']['special.']['feuser']) {
+			// ftu = fe_typo_user
+			$script = "coagoftu({$this->counter},
+		  '{$siteUrl}index.php?eID=coagoFtu&cacheHash={$this->cacheHash}&typeNum={$this->typeNum}&cachePeriod={$this->cachePeriod}{$lang}',
+		  {$this->onLoading},
+		  {$this->refresh});";
 
-		$script .= "
-			http_req_{$counter}_r2.onreadystatechange=function() {
-
-				if( http_req_{$counter}_r2.readyState === 4 ) {
-					  if( http_req_{$counter}_r2.status === 200 ) {
-						 document.getElementById('ncc-{$counter}').innerHTML = http_req_{$counter}_r2.responseText;
-					  }
-				   }
-				};
-			 }
-		  };
-	   }
-	}
-  };
-  ";
-		//condition for refreshing the content at apge
-		if($this->refresh){
-			$script .= " setTimeout('coa_go_{$counter}()', {$this->refresh});";
+		} else {
+			$script = "coago({$this->counter},
+		  '{$siteUrl}{$this->relativePath}{$this->filename}.{$this->cacheFileExtension}',
+		  '{$siteUrl}index.php?id={$GLOBALS['TSFE']->id}&type={$this->typeNum}{$lang}&cacheHash={$this->cacheHash}{$ftuHash}',
+		  {$this->cachePeriod},
+		  {$this->onLoading},
+		  {$this->refresh});";
 		}
-		//cloasing bracet for all javascript
-		$script .= "} coa_go_{$counter}();";
+		
+		// script minification
+		$script = t3lib_div::minifyJavaScript($script, $error);
+		if ($error) {
+			t3lib_div::devLog('Error minimizing script: '.$error, $this->extKey, 3);
+		}
+		
+		if($this->confArr['compressJS']) {
+			require PATH_site . 'typo3conf/ext/coago/res/contrib/JavaScriptPacker/class.JavaScriptPacker.php';
+			$packer = new JavaScriptPacker($script);
+			$script = $packer->pack();
+		}
 
 		return $script;
 	}
 
+
 }
-
-
 
 if (defined('TYPO3_MODE') && $TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/coago/class.tx_coago.php']) {
 	include_once($TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/coago/class.tx_coago.php']);

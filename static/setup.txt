@@ -8,9 +8,9 @@ coago_ajax {
 
 	typeNum = {$typeNum}
 
-	includeLibs = EXT:coago/class.tx_coago.php
+	includeLibs = EXT:coago/class.tx_coago.php	
 	
 	20 = TEXT
 	20.postUserFunc = tx_coago->regenerateContent
 
-} 
+}

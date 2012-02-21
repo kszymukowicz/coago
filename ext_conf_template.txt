@@ -1,4 +1,4 @@
-  # cat=basic//70; type=text; label = Cached cObj directory: Without beginning but with ending slash. If you choose cache type 2 or 3 then cObject will be written to files. Here you can choose folder where the files will be written. Remember that this folder have to be writable to www/apache user.
+  # cat=basic//70; type=text; label = Cached cObj directory: Without beginning but with ending slash. Folder must exist inside "typo3temp" folder! If you choose cache type 2 or 3 then cObject will be written to files. Here you can choose folder where the files will be written. Remember that this folder have to be writable to www/apache user. Note: this folder should not be joined with other extensions as all files in this folder can be deleted if cache is cleared in backend.
 cacheDirectory = typo3temp/cached_cobj/
   # cat=basic//75; type=text; label = Extension added to hash: From TYPO3 4.3 if you use CachingFramework there is no way to set hash name with dot, but configuration of some hosts makes you to create the file with extension in order to be fetched, so this is the way to add extension you like. 
 cacheFileExtension = html
@@ -8,3 +8,7 @@ coagoDisable = 0
 hashNamesFromTS = 0
   # cat=basic//100; type=boolean; label = Clear cache on table changes: If set to TRUE and you will change a record in backend then all cache entries created by COA_GO for this specific table will be removed from cache. This is an easy way to refresh cached values on base of backend user activity. Example - if user changes page title then all COA_GO that have "cache.clearCacheOnTableChange" set to "pages" will be removed from cache and the frontend will be up to date.  
 clearOnTablesOperation = 1
+  # cat=basic//110; type=boolean; label = Include Javascript need by ajax: If you use afterCacheFileAjax then you need to include this JS that are in res/js/coago.js  You can copy and paste it into you JS files and disable this including.  
+includeCoagoJavascript = 1
+  # cat=basic//120; type=boolean; label = Compress Javascript: If on then Javascript that fetch the files from server will be packed and the pathes will not be visible at first sight. Turn off it you so not care about this.
+compressJS = 1

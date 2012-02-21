@@ -2,6 +2,8 @@
 
 if (!defined ('TYPO3_MODE')) 	die ('Access denied.');
 
+$TYPO3_CONF_VARS['FE']['eID_include']['coagoFtu'] = 'EXT:coago/coago_ftu_dispatcher.php';
+
 if (TYPO3_MODE == 'FE') {
 
 	$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_content.php']['cObjTypeAndClass'][] = 

@@ -2,6 +2,7 @@
 
 class tx_coagohooks {
 
+
 	/*
 	 * Hooks into t3lib_tcemain clear_cache function
 	 *
@@ -9,7 +10,7 @@ class tx_coagohooks {
 	 */
 	function clearCachePostProc(&$params, &$pObj) {
 
-	if( $params['cacheCmd'] == 'all' || $params['cacheCmd'] == 'pages' ) {
+		if( $params['cacheCmd'] == 'all' || $params['cacheCmd'] == 'pages' ) {
 
 			//remove all files from cache directory
 			$confArr = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['coago']);
@@ -21,10 +22,15 @@ class tx_coagohooks {
 				$absolutePath = PATH_site . $confArr['cacheDirectory'];
 
 				if( file_exists($absolutePath) ){
-					$filesToDelete = t3lib_div::getFilesInDir($absolutePath);
-					if( is_array($filesToDelete) ) {
-						foreach($filesToDelete as $fileToDelete) {
-							@unlink($absolutePath . $fileToDelete);
+					$this->deleteAllFilesInFolder($absolutePath);
+					$foldersToDelete = t3lib_div::get_dirs($absolutePath);
+
+					if( is_array($foldersToDelete) ) {
+						foreach($foldersToDelete as $folderToDelete) {
+							$this->deleteAllFilesInFolder($absolutePath . $folderToDelete . '/');
+							if( t3lib_div::validPathStr($absolutePath . $folderToDelete) && t3lib_div::isFirstPartOfStr(t3lib_div::fixWindowsFilePath($absolutePath), PATH_site . 'typo3temp' ) ) {
+								rmdir($absolutePath . $folderToDelete);
+							}
 						}
 					}
 				}
@@ -52,6 +58,7 @@ class tx_coagohooks {
 
 	}
 
+
 	/**
 	 * TCEmain hook update/new
 	 *
@@ -69,6 +76,8 @@ class tx_coagohooks {
 		}
 
 	}
+
+
 
 
 	/*
@@ -91,24 +100,43 @@ class tx_coagohooks {
 			if( !$confArr['cacheDirectory'] ) {
 				$confArr['cacheDirectory'] = 'typo3temp/cached_cobj/';
 			}
-
-			if( strlen($confArr['cacheDirectory']) ) {
-				$absolutePath = PATH_site . $confArr['cacheDirectory'];
-				if( file_exists($absolutePath) ){
-					$filesToDelete = t3lib_div::getFilesInDir($absolutePath);
-					if(is_array($filesToDelete)) {
-						foreach($filesToDelete as $fileToDelete) {
-							if( preg_match('/.*'.$table.'.*/', $fileToDelete) ) {
-								@unlink($absolutePath . $fileToDelete);
-							}
+			$absolutePath = PATH_site . $confArr['cacheDirectory'];
+			if( file_exists($absolutePath) && t3lib_div::isFirstPartOfStr(t3lib_div::fixWindowsFilePath($absolutePath), PATH_site . 'typo3temp' )) {
+				$filesToDelete = t3lib_div::getFilesInDir($absolutePath);
+				if(is_array($filesToDelete)) {
+					foreach($filesToDelete as $fileToDelete) {
+						if( preg_match('/.*'.$table.'.*/', $fileToDelete) && t3lib_div::validPathStr($absolutePath . $fileToDelete) ) {
+							@unlink($absolutePath . $fileToDelete);
 						}
 					}
 				}
 			}
 		}
 	}
-	
-	
+
+
+
+	/*
+	 * Remove all files from specific folder. Folder must be inside PATH_site. PATH_typo3conf
+	 *
+	 * @param 	string		$absolutePath: The full path
+	 * @return	void
+	 */
+
+	function deleteAllFilesInFolder($absolutePath) {
+
+		if( file_exists($absolutePath) && t3lib_div::isFirstPartOfStr(t3lib_div::fixWindowsFilePath($absolutePath), PATH_site . 'typo3temp' ) ){
+			$filesToDelete = t3lib_div::getFilesInDir($absolutePath);
+			if( is_array($filesToDelete)) {
+				foreach($filesToDelete as $fileToDelete) {
+					if(t3lib_div::validPathStr($absolutePath . $fileToDelete) ) {
+						@unlink($absolutePath . $fileToDelete);
+					}
+				}
+			}
+		}
+	}
+
 }
 
 ?>

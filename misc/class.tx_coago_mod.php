@@ -4,7 +4,7 @@
  * ************************************************************
  *  Copyright notice
  *
- *  (c) Krystian Szymukowicz (http://www.prolabium.com)
+ *  (c) Krystian Szymukowicz (http://www.cms-partner.pl/)
  *  All rights reserved
  *
  *  This script is part of the TYPO3 project. The TYPO3 project is
@@ -28,7 +28,7 @@
 /*
  * Example of hook changing the ajax script
  * 
- * @author Krystian Szymukowicz <typo3@prolabium.com>
+ * @author Krystian Szymukowicz <ks@cms-partner.pl>
  */
 	 
 
