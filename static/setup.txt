@@ -1,0 +1,16 @@
+coago_ajax = PAGE
+coago_ajax {
+
+	config {
+		no_cache = 1
+		disableAllHeaderCode = 1	
+	}
+
+	typeNum = {$typeNum}
+
+	includeLibs = EXT:coago/class.tx_coago.php
+	
+	20 = TEXT
+	20.postUserFunc = tx_coago->regenerateContent
+
+} 

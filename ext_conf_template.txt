@@ -1,0 +1,10 @@
+  # cat=basic//70; type=text; label = Cached cObj directory: Without beginning but with ending slash. If you choose cache type 2 or 3 then cObject will be written to files. Here you can choose folder where the files will be written. Remember that this folder have to be writable to www/apache user.
+cacheDirectory = typo3temp/cached_cobj/
+  # cat=basic//75; type=text; label = Extension added to hash: From TYPO3 4.3 if you use CachingFramework there is no way to set hash name with dot, but configuration of some hosts makes you to create the file with extension in order to be fetched, so this is the way to add extension you like. 
+cacheFileExtension = html
+  # cat=basic//85; type=boolean; label = Render COA_GO as COA: If set to TRUE it will disable COA_GO and the COA_GO will be rendered as normal COA. It allows you to simply compare times of rendering with or witout COA_GO. 
+coagoDisable = 0
+  # cat=basic//95; type=boolean; label = Hash from cObj path: If set to TRUE then hashes will be made of cObject path. For example if you have "page.10.subpart.myMenu < temp.myMenu" then hash will have name "subpart_myMenu". This is solution if you are too lazy to write your own name for hash using "cache.hash" property. Take under consideration that in some cases this do not guarantee uniqness. FYI: Order of how the base hash is calculated:  1. value of "cache.hash",  2. "hash from cObj path"  3. md5 of $cObject TS configuration.    
+hashNamesFromTS = 0
+  # cat=basic//100; type=boolean; label = Clear cache on table changes: If set to TRUE and you will change a record in backend then all cache entries created by COA_GO for this specific table will be removed from cache. This is an easy way to refresh cached values on base of backend user activity. Example - if user changes page title then all COA_GO that have "cache.clearCacheOnTableChange" set to "pages" will be removed from cache and the frontend will be up to date.  
+clearOnTablesOperation = 1

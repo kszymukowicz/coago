@@ -1,0 +1,5 @@
+		
+# cat=plugin.tt_news//95; type=int+; label= [coago] page type that will be used to render content elements if "afterCacheFile" or "afterCacheFileAjax" fetching is turned on
+typeNum = 855
+		
+
