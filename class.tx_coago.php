@@ -59,7 +59,7 @@ class tx_coago {
 	 * @param $cObj
 	 * @return string
 	 */
-	function cObjGetSingleExt($name, $conf, $TSkey, &$cObj) {
+	public function cObjGetSingleExt($name, $conf, $TSkey, &$cObj) {
 
 		switch ($name) {
 
@@ -139,7 +139,7 @@ class tx_coago {
 	 * Calculate hash identifier for current COA_GO object
 	 * @return string
 	 */
-	function getCobjHash() {
+	protected function getCobjHash() {
 
 		// read unique settings try to figure out if the cObj should be regenerated for $GLOBALS['TSFE']->id page
 		if (is_array($this->TSObjectConf['cache.']['hash.']['special.'])) {
@@ -208,9 +208,9 @@ class tx_coago {
 	 * @return string Content of the cObject
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function beforeCacheDb() {
+	protected function beforeCacheDb() {
 
-		$content = $GLOBALS['TSFE']->sys_page->getHash($this->cacheHash, $this->cachePeriod);
+		$content = t3lib_pageSelect::getHash($this->cacheHash, $this->cachePeriod);
 
 		// Not yet cached? So generate and store in cache_hash.
 		if (!strlen($content)) {
@@ -225,7 +225,7 @@ class tx_coago {
 				$content .= $this->getFormattedTimeStamp('beforeCacheDb');
 			}
 
-			$GLOBALS['TSFE']->sys_page->storeHash($this->cacheHash, $content, 'COA_GO'. $this->ident);
+			t3lib_pageSelect::storeHash($this->cacheHash, $content, 'COA_GO'. $this->ident);
 		}
 		return $content;
 	}
@@ -238,7 +238,7 @@ class tx_coago {
 	 * @return string EXT_SCRIPT which is put in HTML of generated page and then replaced each time the pages is delivered from the cache. Content of the cObject is written in file.
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function afterCacheFile() {
+	protected function afterCacheFile() {
 		// use EXT_SCRIPT to include cObject stored in files
 		$substKey = "EXT_SCRIPT." . $GLOBALS['TSFE']->uniqueHash();
 		$content .= "<!--" . $substKey . "-->";
@@ -271,7 +271,7 @@ class tx_coago {
 			$this->restoreData['cObj'] = $this->cObj;
 			$this->restoreData['conf'] = $this->TSObjectConf;
 			$this->restoreData['absolutePathWithFilename'] = $this->absolutePathWithFilename;
-			$GLOBALS['TSFE']->sys_page->storeHash($this->cacheHash, serialize($this->restoreData), 'COA_GO'. $this->ident);
+			t3lib_pageSelect::storeHash($this->cacheHash, serialize($this->restoreData), 'COA_GO'. $this->ident);
 
 			$fileStatus = t3lib_div::writeFileToTypo3tempDir($this->absolutePathWithFilename, $contentToStore);
 			if ($fileStatus) t3lib_div::devLog('Error writing afterCacheFile: '.$fileStatus, $this->extKey, 3);
@@ -289,7 +289,7 @@ class tx_coago {
 	 * @return string Javascript which is put in HTML of generated page and then when delivered to the client browser it gets the content through ajax. Content of the cObject is written in file.
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function afterCacheFileAjax() {
+	protected function afterCacheFileAjax() {
 
 		// store the date in cache_hash that will be used later by ajax call to rebuild cObject
 		$this->restoreData['cObj'] = $this->cObj;
@@ -300,7 +300,7 @@ class tx_coago {
 		if ($this->table) {
 			$this->ident = '_' . $this->table;
 		}
-		$GLOBALS['TSFE']->sys_page->storeHash($this->cacheHash, serialize($this->restoreData), 'COA_GO'. $this->ident);
+		t3lib_pageSelect::storeHash($this->cacheHash, serialize($this->restoreData), 'COA_GO'. $this->ident);
 
 
 		// prepare the data needed to create javascript that will fetch the cObject
@@ -336,7 +336,7 @@ class tx_coago {
 	 * @return string Content generated with COA
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function getCoagoContent($conf) {
+	protected function getCoagoContent($conf) {
 
 		// standard COA
 		if ($this->cObj->checkIf($conf['if.'])) {
@@ -359,7 +359,7 @@ class tx_coago {
 	 * @return string Unique text used to debug purposes
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function getFormattedTimeStamp($marker) {
+	protected function getFormattedTimeStamp($marker) {
 
 		if ($this->TSObjectConf['cache.']['debug.']['asHtmlComments'] || $this->restoreData['conf']['cache.']['debug.']['asHtmlComments'] ) {
 			$content = '<!-- cObject hash: ' . ($this->cacheHash) . ' '  . strftime("%Y-%m-%d %H:%M:%S") .' '. ($marker ? '['. $marker .']':'') .' -->';
@@ -378,7 +378,7 @@ class tx_coago {
 	 * @return void
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function setPathsAndFiles() {
+	protected function setPathsAndFiles() {
 
 		$confArr = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf'][$this->extKey]);
 
@@ -415,7 +415,7 @@ class tx_coago {
 	 * @return void
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function regenerateContent($conf) {
+	public function regenerateContent($conf) {
 
 		$this->cacheHash = t3lib_div::_GP('cacheHash');
 		if (!preg_match('/^[a-zA-Z0-9_\-]{1,250}$/', $this->cacheHash)) {
@@ -423,7 +423,7 @@ class tx_coago {
 			die('Bad hash passed in GET vars when regenerating content.');
 		}
 		// from "cache_hash" get the data needed to rebuild cObject
-		$this->restoreData = unserialize($GLOBALS['TSFE']->sys_page->getHash($this->cacheHash));
+		$this->restoreData = unserialize(t3lib_pageSelect::getHash($this->cacheHash));
 
 		// this is for rare situation when "cache_hash" table has been cleared and there is no info to regenarate cObjects fetched by ajax, so we have to fetch the whole page
 		if (empty($this->restoreData)) {
@@ -432,7 +432,7 @@ class tx_coago {
 			} else {
 				t3lib_div::getURL(t3lib_div::getIndpEnv('TYPO3_SITE_URL') . 'index.php?id='. $GLOBALS['TSFE']->id .'&no_cache=1');
 			}
-			$this->restoreData = unserialize($GLOBALS['TSFE']->sys_page->getHash($this->cacheHash));
+			$this->restoreData = unserialize(t3lib_pageSelect::getHash($this->cacheHash));
 		}
 
 		$this->cacheType = $this->cObj->stdWrap($this->restoreData['conf']['cache.']['type'], $this->restoreData['conf']['cache.']['type.']);
@@ -489,7 +489,7 @@ class tx_coago {
 	 * @return string php code
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function getAfterCacheFileExpireChecks() {
+	protected function getAfterCacheFileExpireChecks() {
 		$cacheChecks = '<?php
 						$ageInSeconds = time() - filemtime(\''.$this->absolutePathWithFilename.'\');
 						if ( ($ageInSeconds > '.$this->cachePeriod.') && '.$this->cachePeriod.' ) {
@@ -511,7 +511,7 @@ class tx_coago {
 	 * @return string javascript code
 	 * @author Krystian Szymukowicz <ks@cms-partner.pl>
 	 */
-	function getCoagoAjaxScript() {
+	public function getCoagoAjaxScript() {
 
 		$siteUrl = t3lib_div::getIndpEnv('TYPO3_SITE_URL');
 
