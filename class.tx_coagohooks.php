@@ -79,9 +79,6 @@ class tx_coagohooks {
 		}
 	}
 
-
-
-
 	/**
 	 * Remove cache from database and files. Care for "table" based cache.
 	 *
@@ -96,25 +93,21 @@ class tx_coagohooks {
 		$confArr = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['coago']);
 		if ($confArr['clearOnTablesOperation'] && $table) {
 
-			// selective database cache delete
-			$GLOBALS['TYPO3_DB']->exec_DELETEquery ('cache_hash', 'ident = \'COA_GO_' . $GLOBALS['TYPO3_DB']->quoteStr($table, $table) .'\'');
-
+			if (defined('TYPO3_UseCachingFramework') && TYPO3_UseCachingFramework) {
+				/* @var $cacheFrontend t3lib_cache_frontend_VariableFrontend Frontend cache */
+				$cacheFrontend = $GLOBALS['typo3CacheManager']->getCache('cache_hash');
+				$cacheFrontend->flushByTag('ident_COA_GO_' . $table);
+			} else {
+				// selective database cache delete
+				$GLOBALS['TYPO3_DB']->exec_DELETEquery ('cache_hash', 'ident = \'COA_GO_' . $GLOBALS['TYPO3_DB']->quoteStr($table, $table) .'\'');
+			}
 			// selective file cache delete
 			$confArr = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['coago']);
 			if (!$confArr['cacheDirectory']) {
 				$confArr['cacheDirectory'] = 'typo3temp/cached_cobj/';
 			}
 			$absolutePath = PATH_site . $confArr['cacheDirectory'];
-			if (file_exists($absolutePath) && t3lib_div::isFirstPartOfStr(t3lib_div::fixWindowsFilePath($absolutePath), PATH_site . 'typo3temp')) {
-				$filesToDelete = t3lib_div::getFilesInDir($absolutePath);
-				if (is_array($filesToDelete)) {
-					foreach ($filesToDelete as $fileToDelete) {
-						if (preg_match('/.*'.$table.'.*/', $fileToDelete) && t3lib_div::validPathStr($absolutePath . $fileToDelete)) {
-							@unlink($absolutePath . $fileToDelete);
-						}
-					}
-				}
-			}
+			$this->deleteAllFilesInFolder($absolutePath, '/.*'.$table.'.*/');
 		}
 	}
 
@@ -124,15 +117,17 @@ class tx_coagohooks {
 	 * Remove all files from specific folder. Folder must be inside PATH_site. PATH_typo3conf
 	 *
 	 * @param string $absolutePath The full path
+	 * @param string $pathPattern only files matching this regular expression pattern will be deleted,
+	 * default pattern matches all file names
 	 * @return void
 	 */
-	function deleteAllFilesInFolder($absolutePath) {
+	function deleteAllFilesInFolder($absolutePath, $pathPattern = '//') {
 
 		if (file_exists($absolutePath) && t3lib_div::isFirstPartOfStr(t3lib_div::fixWindowsFilePath($absolutePath), PATH_site . 'typo3temp' )) {
 			$filesToDelete = t3lib_div::getFilesInDir($absolutePath);
 			if (is_array($filesToDelete)) {
 				foreach ($filesToDelete as $fileToDelete) {
-					if (t3lib_div::validPathStr($absolutePath . $fileToDelete)) {
+					if (preg_match($pathPattern, $fileToDelete) && t3lib_div::validPathStr($absolutePath . $fileToDelete)) {
 						@unlink($absolutePath . $fileToDelete);
 					}
 				}
